@@ -9,16 +9,13 @@ $ moonbee
 --("))))))=
    < > >
 
-Common commands:
-  moonbee init
-  moonbee install <stable|nightly>
-  moonbee uninstall <toolchain_id|stable|nightly>
-  moonbee <toolchain_id|stable|nightly>
-  moonbee list
-  moonbee help
-
-Current MOON_HOME: <unset>
+MOON_HOME: <unset>
+which moon: /path/to/moon
 
 Selectable toolchains:
-  <none> (run: moonbee install stable)
+  <none>
+
+Hint:
+Run `moonbee <toolchain-name>` to switch toolchains in current terminal.
+Run `moonbee help` for more commands.
 ```

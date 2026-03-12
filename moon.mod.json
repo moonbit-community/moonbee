@@ -3,7 +3,7 @@
   "readme": "README.mbt",
   "repository": "https://github.com/moonbit-community/moonbee",
   "license": "Apache-2.0",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "deps": {
     "moonbitlang/x": "0.4.40",
     "moonbitlang/async": "0.16.4"

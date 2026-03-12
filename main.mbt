@@ -53,31 +53,25 @@ async fn main_async() -> Unit {
 }
 
 ///|
-fn print_overview() -> Unit {
+async fn print_overview() -> Unit {
   let snapshots = list_snapshots()
   let active_toolchain = detect_active_version()
   let moon_home = @sys.get_env_var("MOON_HOME").unwrap_or("<unset>")
   let moon_home_colored = colorize(moon_home, "35")
+  let which_moon = resolve_which_moon()
+  let which_moon_colored = colorize(which_moon, "35")
   let selectable_title = colorize("Selectable toolchains:", "1;34")
   let none_label = colorize("<none>", "90")
-  let install_cmd = colorize("moonbee install stable", "36")
   let stable_shortcut = colorize("moonbee stable", "36")
   let nightly_shortcut = colorize("moonbee nightly", "36")
 
   print_bee_ascii()
-  println("Common commands:")
-  println("  moonbee init")
-  println("  moonbee install <stable|nightly>")
-  println("  moonbee uninstall <toolchain_id|stable|nightly>")
-  println("  moonbee <toolchain_id|stable|nightly>")
-  println("  moonbee list")
-  println("  moonbee help")
-  println("")
-  println("Current MOON_HOME: \{moon_home_colored}")
+  println("MOON_HOME: \{moon_home_colored}")
+  println("which moon: \{which_moon_colored}")
   println("")
   println(selectable_title)
   if snapshots.length() == 0 {
-    println("  \{none_label} (run: \{install_cmd})")
+    println("  \{none_label}")
   } else {
     for snapshot in snapshots {
       let tag = if active_toolchain == Some(snapshot.toolchain_id) {
@@ -127,6 +121,33 @@ fn print_overview() -> Unit {
       }
     }
   }
+  println("")
+  println(colorize("Hint:", "33"))
+  println(
+    colorize(
+      "Run `moonbee <toolchain-name>` to switch toolchains in current terminal.",
+      "33",
+    ),
+  )
+  println(colorize("Run `moonbee help` for more commands.", "33"))
+}
+
+///|
+async fn resolve_which_moon() -> String {
+  let (exit_code, stdout, _) = run_capture("which", ["moon"])
+  if exit_code != 0 {
+    return "<not found>"
+  }
+
+  let trimmed = stdout.trim().to_string()
+  if trimmed == "" {
+    return "<not found>"
+  }
+
+  match trimmed.split_once("\n") {
+    Some((first, _)) => first.to_string()
+    None => trimmed
+  }
 }
 
 ///|
@@ -172,30 +193,70 @@ fn print_help() -> Unit {
     Some(v) => render_snapshot_identity(snapshots, v)
     None => "<none>"
   }
+  let title = colorize("moonbee - Manage MoonBit toolchain snapshots", "1;34")
+  let section_current = colorize("Current toolchain:", "1;34")
+  let section_usage = colorize("Usage:", "1;34")
+  let section_commands = colorize("Commands:", "1;34")
+  let section_notes = colorize("Notes:", "1;34")
+  let active_value = colorize(active_label, "35")
+  let cmd_init = colorize("moonbee init [--yes]", "36")
+  let cmd_install = colorize("moonbee install <stable|nightly>", "36")
+  let cmd_uninstall = colorize(
+    "moonbee uninstall <toolchain_id|stable|nightly> [--yes]", "36",
+  )
+  let cmd_list = colorize("moonbee list", "36")
+  let cmd_switch = colorize("moonbee <version_id|stable|nightly|clear>", "36")
+  let cmd_switch_short = colorize("moonbee <toolchain_id|stable|nightly>", "36")
+  let cmd_clear = colorize("moonbee clear", "36")
+  let cmd_nuke = colorize("moonbee nuke [--yes]", "36")
+  let cmd_help = colorize("moonbee help", "36")
+  let note_line_1 = colorize(
+    "- install resolves channel to concrete version snapshot", "90",
+  )
+  let note_line_2 = colorize(
+    "- user-installed binaries are migrated to ~/.moonbee/bin on switch", "90",
+  )
+  let note_line_3 = colorize(
+    "- shell integration makes 'moonbee <target>' work in current shell", "90",
+  )
+  let note_line_4 = colorize(
+    "- nuke removes MOONBEE_HOME and injected shell integration block", "90",
+  )
 
   print_bee_ascii()
-  println("moonbee - Manage MoonBit toolchain snapshots")
+  println(title)
   println("")
-  println("Current toolchain:")
-  println("  active  : \{active_label}")
+  println(section_current)
+  println("  active  : \{active_value}")
   println("")
-  println("Usage:")
-  println("  moonbee init [--yes]")
-  println("  moonbee install <stable|nightly>")
-  println("  moonbee uninstall <toolchain_id|stable|nightly> [--yes]")
-  println("  moonbee list")
-  println("  moonbee <version_id|stable|nightly|clear>")
-  println("  moonbee nuke [--yes]")
+  println(section_usage)
+  println("  \{cmd_init}")
+  println("  \{cmd_install}")
+  println("  \{cmd_uninstall}")
+  println("  \{cmd_list}")
+  println("  \{cmd_switch}")
+  println("  \{cmd_nuke}")
+  println("  \{cmd_help}")
   println("")
-  println("Notes:")
-  println("  - install resolves channel to concrete version snapshot")
+  println(section_commands)
+  println("  \{cmd_init}  : run first setup; inject/update shell integration")
+  println("  \{cmd_install}  : install latest channel build as a snapshot")
+  println("  \{cmd_uninstall}  : remove one installed snapshot")
+  println("  \{cmd_list}  : show installed snapshots and pointer status")
+  println("  \{cmd_switch_short}  : switch current shell to target snapshot")
   println(
-    "  - user-installed binaries are migrated to ~/.moonbee/bin on switch",
+    "  \{cmd_clear}  : clear MOON_HOME/PATH override and return to global toolchain",
   )
   println(
-    "  - shell integration makes 'moonbee <target>' work in current shell",
+    "  \{cmd_nuke}  : remove ~/.moonbee and injected shell integration block",
   )
-  println("  - nuke removes MOONBEE_HOME and injected shell integration block")
+  println("  \{cmd_help}  : show this help")
+  println("")
+  println(section_notes)
+  println("  \{note_line_1}")
+  println("  \{note_line_2}")
+  println("  \{note_line_3}")
+  println("  \{note_line_4}")
 }
 
 ///|
@@ -790,6 +851,10 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
 
   if is_clear_target(target) {
     let already_global = is_global_shell_state()
+    let which_moon_after_clear = resolve_which_moon_after_clear()
+    let clear_moon_home_line = "MOON_HOME: " + colorize("<unset>", "35")
+    let clear_which_line = "which moon: " +
+      colorize(which_moon_after_clear, "35")
     if emit_env {
       print_clear_moon_home_env_export()
       if already_global {
@@ -799,11 +864,15 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
       } else {
         @stdio.stderr.write("Switched to default toolchain in current shell\n")
       }
+      @stdio.stderr.write(clear_moon_home_line + "\n")
+      @stdio.stderr.write(clear_which_line + "\n")
       return
     }
 
     if already_global {
       println("Already using default toolchain in current shell")
+      println(clear_moon_home_line)
+      println(clear_which_line)
       return
     }
 
@@ -855,6 +924,11 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
 
   migrate_user_bins_on_switch(toolchain_id)
 
+  let snapshot_bin = path_join(snapshot_path, "bin")
+  let snapshot_moon = path_join(snapshot_bin, "moon")
+  let switched_moon_home_line = "MOON_HOME: " + colorize(snapshot_path, "35")
+  let switched_which_line = "which moon: " + colorize(snapshot_moon, "35")
+
   let already_active = @sys.get_env_var("MOON_HOME") == Some(snapshot_path)
   if emit_env {
     print_env_export(snapshot_path)
@@ -863,11 +937,15 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
     } else {
       @stdio.stderr.write("Switched to snapshot: \{toolchain_id}\n")
     }
+    @stdio.stderr.write(switched_moon_home_line + "\n")
+    @stdio.stderr.write(switched_which_line + "\n")
     return
   }
 
   if already_active {
     println("Selected snapshot already active: \{toolchain_id}")
+    println(switched_moon_home_line)
+    println(switched_which_line)
     return
   }
 
@@ -903,6 +981,60 @@ fn resolve_target_version(raw : String) -> String? {
       }
     }
   }
+}
+
+///|
+async fn resolve_which_moon_after_clear() -> String {
+  let old_path = @sys.get_env_var("PATH").unwrap_or("")
+  let filtered_path = filter_path_for_clear(old_path)
+  let path_for_lookup = if filtered_path == "" {
+    default_system_path()
+  } else {
+    filtered_path
+  }
+
+  match find_executable_in_path("moon", path_for_lookup) {
+    Some(path) => path
+    None => "<not found>"
+  }
+}
+
+///|
+fn filter_path_for_clear(path_value : String) -> String {
+  let moonbee_bin = shared_bin_dir()
+  let moonbee_toolchains_prefix = toolchains_dir() + "/"
+
+  let kept : Array[String] = []
+  for raw_entry in path_value.split(":") {
+    let entry = raw_entry.to_string()
+    if entry == "" {
+      continue
+    }
+    if entry == moonbee_bin {
+      continue
+    }
+    if entry.has_prefix(moonbee_toolchains_prefix) && entry.has_suffix("/bin") {
+      continue
+    }
+    kept.push(entry)
+  }
+
+  kept.join(":")
+}
+
+///|
+async fn find_executable_in_path(name : String, path_value : String) -> String? {
+  for raw_dir in path_value.split(":") {
+    let dir = raw_dir.to_string()
+    if dir == "" {
+      continue
+    }
+    let candidate = path_join(dir, name)
+    if is_executable_file(candidate) {
+      return Some(candidate)
+    }
+  }
+  None
 }
 
 ///|
@@ -1797,7 +1929,7 @@ async fn maybe_offer_shell_integration() -> Unit {
     }
 
     let should_upgrade = ask_yes_no(
-      "Shell integration in \{rc} is outdated (shortcut target switch missing). Update it now?",
+      "Shell integration in \{rc} is outdated. Update it now?",
       default_yes=true,
     )
     if not(should_upgrade) {
@@ -1840,9 +1972,13 @@ fn append_shell_integration_block(current : String) -> String {
 
 ///|
 fn shell_integration_is_current(content : String) -> Bool {
-  content.contains("case \"$1\" in") &&
-  content.contains("\"\"|help|--help|-h|init|install|uninstall|list)") &&
+  content.contains(shell_integration_version_tag()) &&
   content.contains("command moonbee \"$__target\" --emit-env")
+}
+
+///|
+fn shell_integration_version_tag() -> String {
+  "# moonbee-shell-v2"
 }
 
 ///|
@@ -1963,31 +2099,41 @@ fn print_clear_moon_home_env_export() -> Unit {
   println("unset MOON_HOME")
   println("_moonbee_home=\"${MOONBEE_HOME:-$HOME/.moonbee}\"")
   println("_moonbee_new_path=\"\"")
-  println("_moonbee_old_ifs=\"$IFS\"")
-  println("IFS=':'")
-  println("for _moonbee_p in $PATH; do")
-  println("  case \"$_moonbee_p\" in")
-  println("    \"$_moonbee_home/bin\"|\"$_moonbee_home/toolchains/\"*/bin) ;;")
+  println("_moonbee_rest=\"$PATH\"")
+  println("while [ -n \"$_moonbee_rest\" ]; do")
+  println("  case \"$_moonbee_rest\" in")
+  println("    *:*)")
+  println("      _moonbee_p=\"${_moonbee_rest%%:*}\"")
+  println("      _moonbee_rest=\"${_moonbee_rest#*:}\"")
+  println("      ;;")
   println("    *)")
-  println("      if [ -z \"$_moonbee_new_path\" ]; then")
-  println("        _moonbee_new_path=\"$_moonbee_p\"")
-  println("      else")
-  println("        _moonbee_new_path=\"${_moonbee_new_path}:$_moonbee_p\"")
-  println("      fi")
+  println("      _moonbee_p=\"$_moonbee_rest\"")
+  println("      _moonbee_rest=\"\"")
   println("      ;;")
   println("  esac")
+  println("  if [ -z \"$_moonbee_p\" ]; then")
+  println("    continue")
+  println("  fi")
+  println("  case \"$_moonbee_p\" in")
+  println("    \"$_moonbee_home/bin\"|\"$_moonbee_home/toolchains/\"*/bin)")
+  println("      continue")
+  println("      ;;")
+  println("  esac")
+  println("  if [ -z \"$_moonbee_new_path\" ]; then")
+  println("    _moonbee_new_path=\"$_moonbee_p\"")
+  println("  else")
+  println("    _moonbee_new_path=\"${_moonbee_new_path}:$_moonbee_p\"")
+  println("  fi")
   println("done")
-  println("IFS=\"$_moonbee_old_ifs\"")
-  println("if [ -z \"$_moonbee_new_path\" ]; then")
-  println("  _moonbee_new_path=\"$PATH\"")
-  println("fi")
   println("if [ -z \"$_moonbee_new_path\" ]; then")
   println(
     "  _moonbee_new_path=\"/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin\"",
   )
   println("fi")
   println("export PATH=\"$_moonbee_new_path\"")
-  println("unset _moonbee_home _moonbee_new_path _moonbee_old_ifs _moonbee_p")
+  println("hash -r 2>/dev/null || true")
+  println("rehash 2>/dev/null || true")
+  println("unset _moonbee_home _moonbee_new_path _moonbee_rest _moonbee_p")
 }
 
 ///|
@@ -2058,6 +2204,7 @@ fn shell_integration_block() -> String {
   let body =
     #|# Added by moonbee.
     #|# Purpose: make `moonbee <target>` apply MOON_HOME/PATH in the current shell.
+    #|# moonbee-shell-v2
     #|# To remove: delete this marker block, or run `moonbee nuke`.
     #|moonbee() {
     #|  case "$1" in
@@ -2089,6 +2236,8 @@ fn print_env_export(snapshot_path : String) -> Unit {
   let shared_bin = shared_bin_dir()
   println("export MOON_HOME=\"\{snapshot_path}\"")
   println("export PATH=\"\{snapshot_bin}:\{shared_bin}:$PATH\"")
+  println("hash -r 2>/dev/null || true")
+  println("rehash 2>/dev/null || true")
 }
 
 ///|
