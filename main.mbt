@@ -2,7 +2,7 @@
 pub(all) enum Channel {
   Stable
   Nightly
-} derive(Eq, Show)
+} derive(Eq, Debug)
 
 ///|
 struct Snapshot {
@@ -139,13 +139,13 @@ async fn resolve_which_moon() -> String {
     return "<not found>"
   }
 
-  let trimmed = stdout.trim().to_string()
+  let trimmed = stdout.trim().to_owned()
   if trimmed == "" {
     return "<not found>"
   }
 
   match trimmed.split_once("\n") {
-    Some((first, _)) => first.to_string()
+    Some((first, _)) => first.to_owned()
     None => trimmed
   }
 }
@@ -515,7 +515,7 @@ async fn install_command(channel_raw : String) -> Unit {
       "Toolchain \{toolchain_id} already installed. Reinstall?",
       default_yes=false,
     )
-    if not(reinstall) {
+    if !reinstall {
       write_text(channel_pointer_file(channel_name), toolchain_id + "\n")
       cleanup_dir(tmp_root)
       println(
@@ -556,7 +556,7 @@ async fn install_command(channel_raw : String) -> Unit {
 
 ///|
 fn list_snapshots() -> Array[Snapshot] {
-  if not(@xfs.path_exists(toolchains_dir())) {
+  if !@xfs.path_exists(toolchains_dir()) {
     return []
   }
 
@@ -567,7 +567,7 @@ fn list_snapshots() -> Array[Snapshot] {
   for toolchain_id in entries {
     let snapshot_path = snapshot_dir(toolchain_id)
     let is_dir = @xfs.is_dir(snapshot_path) catch { _ => false }
-    if not(is_dir) {
+    if !is_dir {
       continue
     }
 
@@ -579,21 +579,21 @@ fn list_snapshots() -> Array[Snapshot] {
     match read_text(snapshot_meta_file(snapshot_path)) {
       Some(content) =>
         for raw_line in content.split("\n") {
-          let line = raw_line.trim().to_string()
+          let line = raw_line.trim().to_owned()
           if line == "" {
             continue
           }
           match line.split_once("=") {
             Some((k, v)) => {
-              let key = k.trim().to_string()
-              let value = v.trim().to_string()
+              let key = k.trim().to_owned()
+              let value = v.trim().to_owned()
               match key {
                 "version_id" => version_id = value
                 "moon_version_all" =>
                   moon_version_all = summarize_multiline_output(value)
                 "source_channel" => source_channel = value
                 "installed_at" => {
-                  let parsed = try? @strconv.parse_uint64(value)
+                  let parsed = try? @string.parse_uint64(value)
                   match parsed {
                     Ok(n) => installed_at = n
                     Err(_) => ()
@@ -738,7 +738,7 @@ async fn uninstall_command(
   }
 
   let snapshot_path = snapshot_dir(toolchain_id)
-  if not(@xfs.path_exists(snapshot_path)) {
+  if !@xfs.path_exists(snapshot_path) {
     uninstall_log(
       "error: snapshot '\{toolchain_id}' is not installed",
       emit_env~,
@@ -756,12 +756,12 @@ async fn uninstall_command(
     return
   }
 
-  if not(force) {
+  if !force {
     let confirmed = ask_yes_no(
       "Uninstall snapshot \{toolchain_id}?",
       default_yes=false,
     )
-    if not(confirmed) {
+    if !confirmed {
       uninstall_log("Uninstall cancelled", emit_env~)
       if emit_env {
         print_noop_env_export()
@@ -898,7 +898,7 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
   }
 
   let snapshot_path = snapshot_dir(toolchain_id)
-  if not(@xfs.path_exists(snapshot_path)) {
+  if !@xfs.path_exists(snapshot_path) {
     println("error: snapshot '\{toolchain_id}' is not installed")
     @sys.exit(1)
     return
@@ -957,7 +957,7 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
 
 ///|
 fn resolve_target_version(raw : String) -> String? {
-  let normalized = raw.trim().to_string()
+  let normalized = raw.trim().to_owned()
 
   match parse_channel(normalized) {
     Some(channel) => {
@@ -1006,7 +1006,7 @@ fn filter_path_for_clear(path_value : String) -> String {
 
   let kept : Array[String] = []
   for raw_entry in path_value.split(":") {
-    let entry = raw_entry.to_string()
+    let entry = raw_entry.to_owned()
     if entry == "" {
       continue
     }
@@ -1025,7 +1025,7 @@ fn filter_path_for_clear(path_value : String) -> String {
 ///|
 async fn find_executable_in_path(name : String, path_value : String) -> String? {
   for raw_dir in path_value.split(":") {
-    let dir = raw_dir.to_string()
+    let dir = raw_dir.to_owned()
     if dir == "" {
       continue
     }
@@ -1046,12 +1046,12 @@ fn is_clear_target(raw : String) -> Bool {
 ///|
 fn is_global_shell_state() -> Bool {
   match @sys.get_env_var("MOON_HOME") {
-    Some(v) => if v.trim().to_string() != "" { return false }
+    Some(v) => if v.trim().to_owned() != "" { return false }
     None => ()
   }
 
   let path_value = @sys.get_env_var("PATH").unwrap_or("")
-  not(path_contains_moonbee_entries(path_value))
+  !path_contains_moonbee_entries(path_value)
 }
 
 ///|
@@ -1074,7 +1074,7 @@ fn color_enabled() -> Bool {
 
 ///|
 fn colorize(text : String, code : String) -> String {
-  if not(color_enabled()) {
+  if !color_enabled() {
     return text
   }
   "\u{1b}[\{code}m\{text}\u{1b}[0m"
@@ -1133,19 +1133,19 @@ fn reinstall_hint_for_toolchain(toolchain_id : String) -> String {
 ///|
 async fn validate_snapshot(snapshot_path : String) -> String? {
   let moon_bin = path_join(path_join(snapshot_path, "bin"), "moon")
-  if not(@xfs.path_exists(moon_bin)) {
+  if !@xfs.path_exists(moon_bin) {
     return Some("missing bin/moon")
   }
-  if not(is_executable_file(moon_bin)) {
+  if !is_executable_file(moon_bin) {
     return Some("bin/moon is not executable")
   }
 
   let core_dir = path_join(path_join(snapshot_path, "lib"), "core")
-  if not(@xfs.path_exists(core_dir)) {
+  if !@xfs.path_exists(core_dir) {
     return Some("missing lib/core")
   }
   let core_is_dir = @xfs.is_dir(core_dir) catch { _ => false }
-  if not(core_is_dir) {
+  if !core_is_dir {
     return Some("lib/core is not a directory")
   }
 
@@ -1191,7 +1191,7 @@ async fn pick_snapshot_interactively() -> String? {
   while true {
     @stdio.stderr.write("Enter number: ")
     let text = match @stdio.stdin.read_until("\n") {
-      Some(v) => v.trim().to_string()
+      Some(v) => v.trim().to_owned()
       None => return None
     }
 
@@ -1199,7 +1199,7 @@ async fn pick_snapshot_interactively() -> String? {
       continue
     }
 
-    let parsed = try? @strconv.parse_int(text)
+    let parsed = try? @string.parse_int(text)
     let idx = match parsed {
       Ok(v) => v
       Err(_) => {
@@ -1262,7 +1262,7 @@ fn read_snapshot_bin_baseline(snapshot_path : String) -> Array[String]? {
     Some(content) => {
       let items : Array[String] = []
       for raw in content.split("\n") {
-        let item = raw.trim().to_string()
+        let item = raw.trim().to_owned()
         if item != "" {
           items.push(item)
         }
@@ -1276,7 +1276,7 @@ fn read_snapshot_bin_baseline(snapshot_path : String) -> Array[String]? {
 ///|
 fn record_snapshot_bin_baseline(snapshot_path : String) -> Unit {
   let bin_dir = snapshot_bin_dir(snapshot_path)
-  if not(@xfs.path_exists(bin_dir)) {
+  if !@xfs.path_exists(bin_dir) {
     println("error: missing bin directory in snapshot: \{bin_dir}")
     @sys.exit(1)
     return
@@ -1301,12 +1301,12 @@ fn choose_shared_bin_destination(
   source_version : String,
 ) -> String {
   let base = path_join(shared_bin_dir(), name)
-  if not(@xfs.path_exists(base)) {
+  if !@xfs.path_exists(base) {
     return base
   }
 
   let with_version = path_join(shared_bin_dir(), name + "." + source_version)
-  if not(@xfs.path_exists(with_version)) {
+  if !@xfs.path_exists(with_version) {
     return with_version
   }
 
@@ -1329,7 +1329,7 @@ async fn migrate_user_bins_on_switch(target_version : String) -> Unit {
   }
 
   let source_snapshot = snapshot_dir(active_version)
-  if not(@xfs.path_exists(source_snapshot)) {
+  if !@xfs.path_exists(source_snapshot) {
     return
   }
 
@@ -1357,7 +1357,7 @@ async fn migrate_user_bins_on_switch(target_version : String) -> Unit {
     let source_path = path_join(source_bin, name)
     let is_regular = @xfs.is_file(source_path) catch { _ => false }
     let is_link = is_symbolic_link(source_path)
-    if not(is_regular) && not(is_link) {
+    if !is_regular && !is_link {
       continue
     }
 
@@ -1381,7 +1381,7 @@ async fn migrate_user_bins_on_switch(target_version : String) -> Unit {
 ///|
 async fn repair_snapshot_bin_permissions(snapshot_path : String) -> Unit {
   let bin_dir = snapshot_bin_dir(snapshot_path)
-  if not(@xfs.path_exists(bin_dir)) {
+  if !@xfs.path_exists(bin_dir) {
     return
   }
 
@@ -1389,7 +1389,7 @@ async fn repair_snapshot_bin_permissions(snapshot_path : String) -> Unit {
   for name in entries {
     let entry = path_join(bin_dir, name)
     let is_file = @xfs.is_file(entry) catch { _ => false }
-    if not(is_file) {
+    if !is_file {
       continue
     }
     ignore(run_capture("chmod", ["+x", entry]))
@@ -1428,7 +1428,7 @@ fn filter_install_base_path(path_value : String) -> String {
   let moonbee_bin = shared_bin_dir()
   let moonbee_toolchains_prefix = toolchains_dir() + "/"
   let current_moon_home = @sys.get_env_var("MOON_HOME").unwrap_or("")
-  let current_moon_home_bin = if current_moon_home.trim().to_string() == "" {
+  let current_moon_home_bin = if current_moon_home.trim().to_owned() == "" {
     ""
   } else {
     path_join(current_moon_home, "bin")
@@ -1436,7 +1436,7 @@ fn filter_install_base_path(path_value : String) -> String {
 
   let kept : Array[String] = []
   for raw in path_value.split(":") {
-    let entry = raw.trim().to_string()
+    let entry = raw.trim().to_owned()
     if entry == "" {
       continue
     }
@@ -1470,7 +1470,7 @@ fn default_system_path() -> String {
 fn official_install_script_url() -> String {
   match @sys.get_env_var("MOONBEE_INSTALL_SCRIPT_URL") {
     Some(v) => {
-      let trimmed = v.trim().to_string()
+      let trimmed = v.trim().to_owned()
       if trimmed == "" {
         "https://cli.moonbitlang.com/install/unix.sh"
       } else {
@@ -1620,25 +1620,25 @@ fn make_toolchain_id(version_id : String, channel_name : String) -> String {
 ///|
 pub fn parse_moon_version_id(version_output : String) -> String? {
   for raw_line in version_output.split("\n") {
-    let line = raw_line.trim().to_string()
-    if not(line.has_prefix("moon ")) {
+    let line = raw_line.trim().to_owned()
+    if !line.has_prefix("moon ") {
       continue
     }
 
     let suffix = match line.strip_prefix("moon ") {
-      Some(rest) => rest.to_string()
+      Some(rest) => rest.to_owned()
       None => continue
     }
 
     match suffix.split_once(" ") {
       Some((version, _rest)) => {
-        let v = version.trim().to_string()
+        let v = version.trim().to_owned()
         if v != "" {
           return Some(v)
         }
       }
       None => {
-        let v = suffix.trim().to_string()
+        let v = suffix.trim().to_owned()
         if v != "" {
           return Some(v)
         }
@@ -1663,7 +1663,7 @@ fn summarize_multiline_output(raw : String) -> String {
 fn split_version_all_summary(summary : String) -> Array[String] {
   let parts : Array[String] = []
   for segment in summary.split(" | ") {
-    let item = segment.trim().to_string()
+    let item = segment.trim().to_owned()
     if item != "" {
       parts.push(item)
     }
@@ -1679,7 +1679,7 @@ fn extract_primary_version_parts(raw : String) -> Array[String] {
 
   for raw_line in raw.split("\n") {
     for raw_segment in raw_line.split("|") {
-      let segment = raw_segment.trim().to_string()
+      let segment = raw_segment.trim().to_owned()
       if segment == "" {
         continue
       }
@@ -1717,7 +1717,7 @@ fn extract_primary_version_parts(raw : String) -> Array[String] {
 fn sanitize_version_all_line(line : String) -> String {
   let kept : Array[String] = []
   for token_raw in line.split(" ") {
-    let token = token_raw.trim().to_string()
+    let token = token_raw.trim().to_owned()
     if token == "" {
       continue
     }
@@ -1783,7 +1783,7 @@ fn format_installed_at_label(installed_at : UInt64) -> String {
 
 ///|
 fn read_text(path : String) -> String? {
-  if not(@xfs.path_exists(path)) {
+  if !@xfs.path_exists(path) {
     return None
   }
 
@@ -1836,7 +1836,7 @@ async fn ensure_dir(path : String) -> Unit {
 
 ///|
 async fn cleanup_dir(path : String) -> Unit {
-  if not(@xfs.path_exists(path)) {
+  if !@xfs.path_exists(path) {
     return
   }
 
@@ -1860,7 +1860,7 @@ async fn ensure_layout() -> Unit {
 fn read_channel_pointer(channel_name : String) -> String? {
   match read_text(channel_pointer_file(channel_name)) {
     Some(v) => {
-      let trimmed = v.trim().to_string()
+      let trimmed = v.trim().to_owned()
       if trimmed == "" {
         None
       } else {
@@ -1873,15 +1873,15 @@ fn read_channel_pointer(channel_name : String) -> String? {
 
 ///|
 pub fn version_from_toolchain_path(path : String) -> String? {
-  let normalized = path.trim().to_string()
+  let normalized = path.trim().to_owned()
   let marker = "/toolchains/"
 
   let remaining = match normalized.split_once(marker) {
-    Some((_before, after)) => after.to_string()
+    Some((_before, after)) => after.to_owned()
     None => {
       let prefix = toolchains_dir() + "/"
       match normalized.strip_prefix(prefix) {
-        Some(rest) => rest.to_string()
+        Some(rest) => rest.to_owned()
         None => return None
       }
     }
@@ -1892,7 +1892,7 @@ pub fn version_from_toolchain_path(path : String) -> String? {
   }
 
   match remaining.split_once("/") {
-    Some((v, _)) => Some(v.to_string())
+    Some((v, _)) => Some(v.to_owned())
     None => Some(remaining)
   }
 }
@@ -1932,7 +1932,7 @@ async fn maybe_offer_shell_integration() -> Unit {
       "Shell integration in \{rc} is outdated. Update it now?",
       default_yes=true,
     )
-    if not(should_upgrade) {
+    if !should_upgrade {
       return
     }
 
@@ -1948,7 +1948,7 @@ async fn maybe_offer_shell_integration() -> Unit {
     "Shell integration not found. Append moonbee init block to \{rc}?",
     default_yes=true,
   )
-  if not(should_install) {
+  if !should_install {
     return
   }
 
@@ -1961,10 +1961,10 @@ async fn maybe_offer_shell_integration() -> Unit {
 ///|
 fn append_shell_integration_block(current : String) -> String {
   let mut next = current
-  if next.trim() != "" && not(next.has_suffix("\n")) {
+  if next.trim() != "" && !next.has_suffix("\n") {
     next = next + "\n"
   }
-  if not(next.has_suffix("\n\n")) {
+  if !next.has_suffix("\n\n") {
     next = next + "\n"
   }
   next + shell_integration_block()
@@ -2030,9 +2030,9 @@ async fn nuke_command(force? : Bool = false, emit_env? : Bool = false) -> Unit {
     emit_env~,
   )
 
-  if not(force) {
+  if !force {
     let confirmed = ask_yes_no("Continue?", default_yes=false)
-    if not(confirmed) {
+    if !confirmed {
       nuke_log("Nuke cancelled", emit_env~)
       return
     }
@@ -2054,7 +2054,7 @@ async fn nuke_command(force? : Bool = false, emit_env? : Bool = false) -> Unit {
   if removed_bash {
     nuke_log("Removed moonbee shell block from: \{bashrc}", emit_env~)
   }
-  if not(removed_zsh) && not(removed_bash) {
+  if !removed_zsh && !removed_bash {
     nuke_log(
       "No injected shell block found in ~/.zshrc or ~/.bashrc",
       emit_env~,
@@ -2146,12 +2146,12 @@ fn strip_shell_integration_blocks(content : String) -> (String, Int) {
   while current.contains(start) && current.contains(end) {
     let split_start = current.split_once(start)
     let (before, tail) = match split_start {
-      Some((a, b)) => (a.to_string(), b.to_string())
+      Some((a, b)) => (a.to_owned(), b.to_owned())
       None => break
     }
     let split_end = tail.split_once(end)
     let after = match split_end {
-      Some((_block, b)) => b.to_string()
+      Some((_block, b)) => b.to_owned()
       None => break
     }
     current = before + after
@@ -2256,7 +2256,7 @@ fn home_dir() -> String {
 fn moonbee_home() -> String {
   match @sys.get_env_var("MOONBEE_HOME") {
     Some(v) => {
-      let trimmed = v.trim().to_string()
+      let trimmed = v.trim().to_owned()
       if trimmed == "" {
         path_join(home_dir(), ".moonbee")
       } else {
