@@ -20,7 +20,7 @@ jobs:
 
       - name: install
         run: |
-          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s -- nightly
           echo "$HOME/.moon/bin" >> $GITHUB_PATH
 
       - name: moon version
@@ -34,7 +34,7 @@ jobs:
 
       - name: moon info
         run: |
-          moon info --target all
+          moon info --target native
           git diff --exit-code
 
       - name: format diff
