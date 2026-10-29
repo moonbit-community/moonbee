@@ -56,7 +56,7 @@ async fn main_async() -> Unit {
 async fn print_overview() -> Unit {
   let snapshots = list_snapshots()
   let active_toolchain = detect_active_version()
-  let moon_home = @sys.get_env_var("MOON_HOME").unwrap_or("<unset>")
+  let moon_home = @env.get_env_var("MOON_HOME").unwrap_or("<unset>")
   let moon_home_colored = colorize(moon_home, "35")
   let which_moon = resolve_which_moon()
   let which_moon_colored = colorize(which_moon, "35")
@@ -298,7 +298,7 @@ async fn init_entry(args : Array[String]) -> Unit {
 }
 
 ///|
-async fn run_first_setup(force_yes? : Bool = false) -> Unit {
+async fn run_first_setup(force_yes~ : Bool = false) -> Unit {
   ensure_layout()
   println("moonbee first-run setup:")
   println("  1. Inject shell integration for 'moonbee <target>/nuke'")
@@ -593,7 +593,9 @@ fn list_snapshots() -> Array[Snapshot] {
                   moon_version_all = summarize_multiline_output(value)
                 "source_channel" => source_channel = value
                 "installed_at" => {
-                  let parsed = try? @string.parse_uint64(value)
+                  let parsed = Ok(@string.parse_uint64(value)) catch {
+                    e => Err(e)
+                  }
                   match parsed {
                     Ok(n) => installed_at = n
                     Err(_) => ()
@@ -707,8 +709,8 @@ async fn list_command() -> Unit {
 ///|
 async fn uninstall_command(
   target_raw : String,
-  force? : Bool = false,
-  emit_env? : Bool = false,
+  force~ : Bool = false,
+  emit_env~ : Bool = false,
 ) -> Unit {
   ensure_layout()
 
@@ -810,7 +812,7 @@ async fn refresh_channel_pointer_after_uninstall(
   channel_name : String,
   removed_toolchain : String,
   remaining : Array[Snapshot],
-  emit_env? : Bool = false,
+  emit_env~ : Bool = false,
 ) -> Unit {
   if read_channel_pointer(channel_name) != Some(removed_toolchain) {
     return
@@ -929,7 +931,7 @@ async fn use_command(target_input : String?, emit_env~ : Bool) -> Unit {
   let switched_moon_home_line = "MOON_HOME: " + colorize(snapshot_path, "35")
   let switched_which_line = "which moon: " + colorize(snapshot_moon, "35")
 
-  let already_active = @sys.get_env_var("MOON_HOME") == Some(snapshot_path)
+  let already_active = @env.get_env_var("MOON_HOME") == Some(snapshot_path)
   if emit_env {
     print_env_export(snapshot_path)
     if already_active {
@@ -985,7 +987,7 @@ fn resolve_target_version(raw : String) -> String? {
 
 ///|
 async fn resolve_which_moon_after_clear() -> String {
-  let old_path = @sys.get_env_var("PATH").unwrap_or("")
+  let old_path = @env.get_env_var("PATH").unwrap_or("")
   let filtered_path = filter_path_for_clear(old_path)
   let path_for_lookup = if filtered_path == "" {
     default_system_path()
@@ -1045,12 +1047,12 @@ fn is_clear_target(raw : String) -> Bool {
 
 ///|
 fn is_global_shell_state() -> Bool {
-  match @sys.get_env_var("MOON_HOME") {
+  match @env.get_env_var("MOON_HOME") {
     Some(v) => if v.trim().to_owned() != "" { return false }
     None => ()
   }
 
-  let path_value = @sys.get_env_var("PATH").unwrap_or("")
+  let path_value = @env.get_env_var("PATH").unwrap_or("")
   !path_contains_moonbee_entries(path_value)
 }
 
@@ -1063,12 +1065,12 @@ fn path_contains_moonbee_entries(path_value : String) -> Bool {
 
 ///|
 fn color_enabled() -> Bool {
-  let no_color = @sys.get_env_var("NO_COLOR").unwrap_or("")
+  let no_color = @env.get_env_var("NO_COLOR").unwrap_or("")
   if no_color != "" {
     return false
   }
 
-  let term = @sys.get_env_var("TERM").unwrap_or("")
+  let term = @env.get_env_var("TERM").unwrap_or("")
   term != "dumb"
 }
 
@@ -1199,7 +1201,7 @@ async fn pick_snapshot_interactively() -> String? {
       continue
     }
 
-    let parsed = try? @string.parse_int(text)
+    let parsed = Ok(@string.parse_int(text)) catch { e => Err(e) }
     let idx = match parsed {
       Ok(v) => v
       Err(_) => {
@@ -1220,7 +1222,7 @@ async fn pick_snapshot_interactively() -> String? {
 }
 
 ///|
-async fn ask_yes_no(question : String, default_yes? : Bool = true) -> Bool {
+async fn ask_yes_no(question : String, default_yes~ : Bool = true) -> Bool {
   let hint = if default_yes { "[Y/n]" } else { "[y/N]" }
 
   while true {
@@ -1282,9 +1284,9 @@ fn record_snapshot_bin_baseline(snapshot_path : String) -> Unit {
     return
   }
 
-  let entries = @xfs.read_dir(bin_dir) catch {
+  let entries = @xfs.read_dir(bin_dir).to_owned() catch {
     err => {
-      println("error: failed to read snapshot bin '\{bin_dir}': \{err}")
+      println("error: failed to read snapshot bin '\{bin_dir}': \{Repr(err)}")
       @sys.exit(1)
       []
     }
@@ -1385,7 +1387,7 @@ async fn repair_snapshot_bin_permissions(snapshot_path : String) -> Unit {
     return
   }
 
-  let entries = @xfs.read_dir(bin_dir) catch { _ => return }
+  let entries = @xfs.read_dir(bin_dir).to_owned() catch { _ => return }
   for name in entries {
     let entry = path_join(bin_dir, name)
     let is_file = @xfs.is_file(entry) catch { _ => false }
@@ -1400,7 +1402,7 @@ async fn repair_snapshot_bin_permissions(snapshot_path : String) -> Unit {
 fn build_snapshot_env(snapshot_path : String) -> Map[String, String] {
   let snapshot_bin = path_join(snapshot_path, "bin")
   let shared_bin = shared_bin_dir()
-  let old_path = @sys.get_env_var("PATH").unwrap_or("")
+  let old_path = @env.get_env_var("PATH").unwrap_or("")
   let prefix = "\{snapshot_bin}:\{shared_bin}"
   let joined_path = if old_path == "" {
     prefix
@@ -1413,7 +1415,7 @@ fn build_snapshot_env(snapshot_path : String) -> Map[String, String] {
 ///|
 fn build_install_script_path(snapshot_path : String) -> String {
   let snapshot_bin = path_join(snapshot_path, "bin")
-  let old_path = @sys.get_env_var("PATH").unwrap_or("")
+  let old_path = @env.get_env_var("PATH").unwrap_or("")
   let filtered = filter_install_base_path(old_path)
   if filtered == "" {
     "\{snapshot_bin}:\{default_system_path()}"
@@ -1427,7 +1429,7 @@ fn filter_install_base_path(path_value : String) -> String {
   let home_moon_bin = path_join(home_dir(), ".moon/bin")
   let moonbee_bin = shared_bin_dir()
   let moonbee_toolchains_prefix = toolchains_dir() + "/"
-  let current_moon_home = @sys.get_env_var("MOON_HOME").unwrap_or("")
+  let current_moon_home = @env.get_env_var("MOON_HOME").unwrap_or("")
   let current_moon_home_bin = if current_moon_home.trim().to_owned() == "" {
     ""
   } else {
@@ -1468,7 +1470,7 @@ fn default_system_path() -> String {
 
 ///|
 fn official_install_script_url() -> String {
-  match @sys.get_env_var("MOONBEE_INSTALL_SCRIPT_URL") {
+  match @env.get_env_var("MOONBEE_INSTALL_SCRIPT_URL") {
     Some(v) => {
       let trimmed = v.trim().to_owned()
       if trimmed == "" {
@@ -1485,20 +1487,24 @@ fn official_install_script_url() -> String {
 async fn run_capture(
   cmd : String,
   args : Array[String],
-  extra_env? : Map[String, String] = {},
-  cwd? : String = "",
-) -> (Int, String, String) {
+  extra_env~ : Map[String, String] = {},
+  cwd~ : String = "",
+) -> (Int32, String, String) {
   let result = if cwd == "" {
-    try? @process.collect_output(cmd, args, extra_env~, inherit_env=true)
+    Ok(@process.collect_output(cmd, args, extra_env~, inherit_env=true)) catch {
+      e => Err(e)
+    }
   } else {
-    try? @process.collect_output(cmd, args, extra_env~, inherit_env=true, cwd~)
+    Ok(@process.collect_output(cmd, args, extra_env~, inherit_env=true, cwd~)) catch {
+      e => Err(e)
+    }
   }
 
   match result {
     Ok((exit_code, stdout_data, stderr_data)) =>
       (exit_code, stdout_data.text(), stderr_data.text())
     Err(err) => {
-      println("error: failed to run command '\{cmd}': \{err}")
+      println("error: failed to run command '\{cmd}': \{Repr(err)}")
       @sys.exit(1)
       (1, "", "")
     }
@@ -1509,9 +1515,9 @@ async fn run_capture(
 async fn run_passthrough(
   cmd : String,
   args : Array[String],
-  extra_env? : Map[String, String] = {},
-  cwd? : String = "",
-  log_cmd? : Bool = false,
+  extra_env~ : Map[String, String] = {},
+  cwd~ : String = "",
+  log_cmd~ : Bool = false,
 ) -> Unit {
   let joined_args = args.join(" ")
   let rendered = if joined_args == "" { cmd } else { cmd + " " + joined_args }
@@ -1520,24 +1526,32 @@ async fn run_passthrough(
   }
 
   let result = if cwd == "" {
-    try? @process.run(
-      cmd,
-      args,
-      extra_env~,
-      inherit_env=true,
-      stdout=@stdio.stdout,
-      stderr=@stdio.stderr,
-    )
+    Ok(
+      @process.run(
+        cmd,
+        args,
+        extra_env~,
+        inherit_env=true,
+        stdout=@stdio.stdout,
+        stderr=@stdio.stderr,
+      ),
+    ) catch {
+      e => Err(e)
+    }
   } else {
-    try? @process.run(
-      cmd,
-      args,
-      extra_env~,
-      inherit_env=true,
-      stdout=@stdio.stdout,
-      stderr=@stdio.stderr,
-      cwd~,
-    )
+    Ok(
+      @process.run(
+        cmd,
+        args,
+        extra_env~,
+        inherit_env=true,
+        stdout=@stdio.stdout,
+        stderr=@stdio.stderr,
+        cwd~,
+      ),
+    ) catch {
+      e => Err(e)
+    }
   }
 
   match result {
@@ -1547,7 +1561,7 @@ async fn run_passthrough(
         @sys.exit(exit_code)
       }
     Err(err) => {
-      println("error: failed to run command '\{cmd}': \{err}")
+      println("error: failed to run command '\{cmd}': \{Repr(err)}")
       @sys.exit(1)
     }
   }
@@ -1557,9 +1571,9 @@ async fn run_passthrough(
 async fn run_checked(
   cmd : String,
   args : Array[String],
-  extra_env? : Map[String, String] = {},
-  cwd? : String = "",
-  log_cmd? : Bool = false,
+  extra_env~ : Map[String, String] = {},
+  cwd~ : String = "",
+  log_cmd~ : Bool = false,
 ) -> String {
   let joined_args = args.join(" ")
   let rendered = if joined_args == "" { cmd } else { cmd + " " + joined_args }
@@ -1787,7 +1801,7 @@ fn read_text(path : String) -> String? {
     return None
   }
 
-  let result = try? @xfs.read_file_to_string(path)
+  let result = Ok(@xfs.read_file_to_string(path)) catch { e => Err(e) }
   match result {
     Ok(content) => Some(content)
     Err(_) => None
@@ -1796,11 +1810,13 @@ fn read_text(path : String) -> String? {
 
 ///|
 fn write_text(path : String, content : String) -> Unit {
-  let result = try? @xfs.write_string_to_file(path, content)
+  let result = Ok(@xfs.write_string_to_file(path, content)) catch {
+    e => Err(e)
+  }
   match result {
     Ok(_) => ()
     Err(err) => {
-      println("error: failed to write '\{path}': \{err}")
+      println("error: failed to write '\{path}': \{Repr(err)}")
       @sys.exit(1)
     }
   }
@@ -1818,7 +1834,9 @@ async fn ensure_dir(path : String) -> Unit {
     return
   }
 
-  let result = try? @afs.mkdir(path, permission=0o755, recursive=true)
+  let result = Ok(@afs.mkdir(path, permission=0o755, recursive=true)) catch {
+    e => Err(e)
+  }
   match result {
     Ok(_) => ()
     Err(err) => {
@@ -1828,7 +1846,7 @@ async fn ensure_dir(path : String) -> Unit {
           return
         }
       }
-      println("error: failed to create directory '\{path}': \{err}")
+      println("error: failed to create directory '\{path}': \{Repr(err)}")
       @sys.exit(1)
     }
   }
@@ -1840,7 +1858,7 @@ async fn cleanup_dir(path : String) -> Unit {
     return
   }
 
-  let result = try? @afs.rmdir(path, recursive=true)
+  let result = Ok(@afs.rmdir(path, recursive=true)) catch { e => Err(e) }
   match result {
     Ok(_) => ()
     Err(_) => ()
@@ -1899,7 +1917,7 @@ pub fn version_from_toolchain_path(path : String) -> String? {
 
 ///|
 fn detect_active_version() -> String? {
-  match @sys.get_env_var("MOON_HOME") {
+  match @env.get_env_var("MOON_HOME") {
     Some(current_home) => version_from_toolchain_path(current_home)
     None => None
   }
@@ -2017,7 +2035,7 @@ fn ensure_shell_integration_non_interactive() -> Unit {
 }
 
 ///|
-async fn nuke_command(force? : Bool = false, emit_env? : Bool = false) -> Unit {
+async fn nuke_command(force~ : Bool = false, emit_env~ : Bool = false) -> Unit {
   let target_home = moonbee_home()
   let zshrc = path_join(home_dir(), ".zshrc")
   let bashrc = path_join(home_dir(), ".bashrc")
@@ -2067,7 +2085,7 @@ async fn nuke_command(force? : Bool = false, emit_env? : Bool = false) -> Unit {
 }
 
 ///|
-async fn nuke_log(message : String, emit_env? : Bool = false) -> Unit {
+async fn nuke_log(message : String, emit_env~ : Bool = false) -> Unit {
   if emit_env {
     @stdio.stderr.write(message + "\n")
   } else {
@@ -2076,7 +2094,7 @@ async fn nuke_log(message : String, emit_env? : Bool = false) -> Unit {
 }
 
 ///|
-async fn uninstall_log(message : String, emit_env? : Bool = false) -> Unit {
+async fn uninstall_log(message : String, emit_env~ : Bool = false) -> Unit {
   if emit_env {
     @stdio.stderr.write(message + "\n")
   } else {
@@ -2137,7 +2155,7 @@ fn print_clear_moon_home_env_export() -> Unit {
 }
 
 ///|
-fn strip_shell_integration_blocks(content : String) -> (String, Int) {
+fn strip_shell_integration_blocks(content : String) -> (String, Int32) {
   let mut current = content
   let mut removed = 0
   let start = shell_marker_start()
@@ -2179,7 +2197,7 @@ fn remove_shell_integration_from_file(path : String) -> Bool {
 
 ///|
 fn detect_shell_rc_file() -> String? {
-  let shell = @sys.get_env_var("SHELL").unwrap_or("")
+  let shell = @env.get_env_var("SHELL").unwrap_or("")
   if shell.has_suffix("/zsh") || shell == "zsh" {
     return Some(path_join(home_dir(), ".zshrc"))
   }
@@ -2242,7 +2260,7 @@ fn print_env_export(snapshot_path : String) -> Unit {
 
 ///|
 fn home_dir() -> String {
-  match @sys.get_env_var("HOME") {
+  match @env.get_env_var("HOME") {
     Some(v) => v
     None => {
       println("error: HOME is not set")
@@ -2254,7 +2272,7 @@ fn home_dir() -> String {
 
 ///|
 fn moonbee_home() -> String {
-  match @sys.get_env_var("MOONBEE_HOME") {
+  match @env.get_env_var("MOONBEE_HOME") {
     Some(v) => {
       let trimmed = v.trim().to_owned()
       if trimmed == "" {

@@ -1,16 +1,14 @@
 import {
-  "moonbitlang/core/env" @env,
+  "moonbitlang/core/env",
   "moonbitlang/core/string",
-  "moonbitlang/async" @async,
+  "moonbitlang/async",
   "moonbitlang/async/fs" @afs,
-  "moonbitlang/async/process" @process,
-  "moonbitlang/async/stdio" @stdio,
+  "moonbitlang/async/process",
+  "moonbitlang/async/stdio",
   "moonbitlang/x/fs" @xfs,
-  "moonbitlang/x/sys" @sys,
+  "moonbitlang/x/sys",
 }
 
 supported_targets = "native"
 
-options(
-  "is-main": true,
-)
+pkgtype(kind: "executable")
